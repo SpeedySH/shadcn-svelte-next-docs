@@ -1,0 +1,51 @@
+name: Простая синхронизация репозитория
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+env:
+  SOURCE_OWNER: 'huntabyte'
+  SOURCE_REPO: 'shadcn-svelte'
+  SOURCE_BRANCH: 'next'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Синхронизация
+        run: |
+          # Настройка git
+          git config user.name 'github-actions[bot]'
+          git config user.email 'github-actions[bot]@users.noreply.github.com'
+
+          # Сохраняем нашу папку .github
+          mkdir -p /tmp/backup
+          cp -r .github /tmp/backup/
+
+          # Добавляем исходный репозиторий как upstream
+          git remote add upstream https://github.com/${{ env.SOURCE_OWNER }}/${{ env.SOURCE_REPO }}.git || true
+
+          # Получаем данные из upstream
+          git fetch upstream ${{ env.SOURCE_BRANCH }}
+
+          # Сбрасываем текущую ветку к состоянию upstream
+          git reset --hard upstream/${{ env.SOURCE_BRANCH }}
+
+          # Восстанавливаем нашу папку .github
+          rm -rf .github
+          cp -r /tmp/backup/.github ./
+          git add .github
+          git commit -m "Восстановление локальной папки .github"
+
+          # Пушим изменения
+          git push origin HEAD:main --force-with-lease
+
+          echo "✅ Синхронизация завершена"
